@@ -1,7 +1,9 @@
 # sdrjs
 A wrapper around [librtlsdr](http://sdr.osmocom.org/trac/wiki/rtl-sdr) for node.js
 
-Currently only tested on Linux
+This module depends on `librtlsdr`, which you can install with most package managers.
+
+Currently only tested on `Linux`
 
 ## sdrjs
 sdrjs has the following functions:
