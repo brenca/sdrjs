@@ -2,19 +2,18 @@
 #define DEVICE_H
 
 #include <nan.h>
-#include <native_huron/dictionary.h>
-#include <native_huron/emitter.h>
 #include <rtl-sdr.h>
 #include <thread>
 #include <vector>
 
-class Device : public huron::Emitter
+class Device : public Nan::ObjectWrap
 {
 public:
   static NAN_MODULE_INIT(Init);
   static v8::Local<v8::Value> NewInstance();
   static NAN_METHOD(New);
   
+  static NAN_METHOD(SetCallbacks);
   static NAN_GETTER(GetProperty);
   static NAN_METHOD(Open);
   static NAN_METHOD(Close);
@@ -51,6 +50,10 @@ public:
   void initWithIndex(int i);
   void asyncData();
 
+  uv_async_t* _async;
+  
+  Nan::Callback* _dataCb;
+  Nan::Callback* _stoppedCb;
 private:
   explicit Device();
   ~Device();
@@ -73,6 +76,13 @@ private:
   std::thread* _reader;
   
   static Nan::Persistent<v8::FunctionTemplate> _constructor;
+};
+
+struct BufferData {
+  Device* self;
+  char* buffer;
+  uint32_t length;
+  bool stopped;
 };
 
 #endif

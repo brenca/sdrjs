@@ -1,5 +1,5 @@
 const assert = require('assert')
-const sdrjs = require('bindings')('sdrjs')
+const sdrjs = require('../addon.js')
 
 describe('sdrjs', function() {
   describe('getDevices', function() {
@@ -17,7 +17,7 @@ describe('sdrjs', function() {
       else done(Error("No device connected"))
     })
     
-    if (devices.length > 0) {
+    if (devices.length > 0) {    
       beforeEach(function(done) {
         this.timeout(10000)
         device.close()
@@ -54,7 +54,7 @@ describe('sdrjs', function() {
       })
       
       describe('stopped event', function() {
-        it('should close the device once it\'s stopped', function(done) {          
+        it('should close the device once it\'s stopped', function(done) {
           try {
             device.open()
             device.start()

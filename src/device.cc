@@ -9,6 +9,8 @@ Device::Device() {
   _devicePtr = NULL;
   _gains = NULL;
   _reader = NULL;
+  _dataCb = NULL;
+  _stoppedCb = NULL;
   
   _bufferNumber = 32;
   _bufferLength = 16 * 16384;
@@ -90,6 +92,7 @@ NAN_MODULE_INIT(Device::Init) {
   Nan::SetPrototypeMethod(tpl, "close", Close);
   Nan::SetPrototypeMethod(tpl, "start", Start);
   Nan::SetPrototypeMethod(tpl, "stop", Stop);
+  Nan::SetPrototypeMethod(tpl, "setCallbacks", SetCallbacks);
 
   Nan::SetPrototypeMethod(
     tpl, "enableManualTunerGain", EnableManualTunerGain);
@@ -101,10 +104,6 @@ NAN_MODULE_INIT(Device::Init) {
   Nan::SetPrototypeMethod(tpl, "disableAGC", DisableAGC);
   Nan::SetPrototypeMethod(tpl, "enableTestMode", EnableTestMode);
   Nan::SetPrototypeMethod(tpl, "disableTestMode", DisableTestMode);
-  
-  Nan::SetPrototypeMethod(tpl, "on", Emitter::On);
-  Nan::SetPrototypeMethod(tpl, "once", Emitter::Once);
-  Nan::SetPrototypeMethod(tpl, "off", Emitter::Off);
 }
 
 Local<Value> Device::NewInstance() {
@@ -134,14 +133,47 @@ void Device::initWithIndex(int i) {
   _devicename = rtlsdr_get_device_name(_index);
 }
 
-void dataCallback(unsigned char *buf, uint32_t len, void *ctx) {
+void uv_free_handle(uv_handle_t* handle) {}
+
+void dataCallback(unsigned char *buf, uint32_t len, void *ctx) {  
   Device* device = (Device*)ctx;
-  if (device != NULL && buf != NULL && len > 0) {
-    device->Emit("data", [buf, len](huron::Dictionary& dict) {
-      dict.Set("buffer", Nan::CopyBuffer((char*)buf, len).ToLocalChecked());
-      dict.Set("length", len);
-    });
+  if (device != NULL && buf != NULL && len > 0 && device->_async) {
+    BufferData* data = new BufferData();
+		data->self = device;
+    data->buffer = new char[len];
+    memcpy(data->buffer, buf, len);
+    data->length = len;
+    data->stopped = false;
+
+		device->_async->data = (void*)data;
+		uv_async_send(device->_async);
   }
+}
+
+void handleAsync(uv_async_t *handle) {
+  // Nan::EscapableHandleScope scope;
+  Nan::HandleScope scope;
+  
+  BufferData* data = (BufferData*) handle->data;
+  
+  if (data->stopped) {
+    if (data->self->_stoppedCb)
+      data->self->_stoppedCb->Call(0, 0);
+      
+    uv_close((uv_handle_t*)data->self->_async, &uv_free_handle);
+    return;
+  }
+
+  if (data->self->_dataCb) {
+    Local<Value> argv[] = {
+      Nan::CopyBuffer(
+        data->buffer, data->length
+      ).ToLocalChecked()
+    };
+    data->self->_dataCb->Call(1, argv);
+  }
+  
+  delete[] data->buffer;
 }
 
 void Device::asyncData() {
@@ -151,8 +183,24 @@ void Device::asyncData() {
     Nan::ThrowError("Could not start device.");
     return;
   }
+
+  if (this->_async) {
+    BufferData* data = new BufferData();
+    data->self = this;
+    data->stopped = true;
+    
+    this->_async->data = (void*)data;
+    uv_async_send(this->_async);
+  }
+}
+
+NAN_METHOD(Device::SetCallbacks) {
+  Device* device = Nan::ObjectWrap::Unwrap<Device>(info.This());
   
-  Emit("stopped", [](huron::Dictionary& dict) {});
+  device->_dataCb = new Nan::Callback(info[0].As<Function>());
+  device->_stoppedCb = new Nan::Callback(info[1].As<Function>());
+  
+	info.GetReturnValue().Set(info.This());
 }
 
 NAN_GETTER(Device::GetProperty) {
@@ -254,6 +302,11 @@ NAN_METHOD(Device::Start) {
     device->_started = true;
     device->_reader = new std::thread(&Device::asyncData, device);
     device->_reader->detach();
+    
+    device->_async = new uv_async_t();
+    uv_async_init(uv_default_loop()
+      , device->_async
+      , &handleAsync);
   } else {
     Nan::ThrowError("Device not open!");
   }
