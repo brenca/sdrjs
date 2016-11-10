@@ -1,6 +1,6 @@
 {
   "name": "sdrjs",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "librtlsdr wrapper for node",
   "main": "addon.js",
   "repository": {
@@ -17,8 +17,7 @@
   "license": "MIT",
   "dependencies": {
     "bindings": "~1.2.1",
-    "nan": "^2.0.0",
-    "native-huron": "^0.1.2"
+    "nan": "^2.0.0"
   },
   "scripts": {
     "test": "mocha tests/tests.js"
