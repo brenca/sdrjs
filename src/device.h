@@ -78,7 +78,7 @@ private:
   static Nan::Persistent<v8::FunctionTemplate> _constructor;
 };
 
-struct BufferData {
+struct AsyncMessage {
   Device* self;
   char* buffer;
   uint32_t length;

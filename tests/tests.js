@@ -73,25 +73,31 @@ describe('sdrjs', function() {
       
       describe('data event', function() {
         it('should return a buffer read from the device', function(done) {
-          this.timeout(15000)
+          this.timeout(20000)
           let val
           
           try {
-            device.open()
+            device.open()            
             device.start()
+            
+            let count = 0
+            let datacb = (e) => {
+              if (e.length == 0) {
+                val = Error("Data was 0 length.")
+              }
+              
+              if (count++ > 50) {
+                device.off("data", datacb)
+                device.stop()
+              }
+            }
             
             device.once("stopped", () => {
               device.close()
               done(val)
             })
             
-            device.once("data", e => {
-              if (e.length == 0) {
-                val = Error("Data was 0 length.")
-              }
-              
-              device.stop()
-            })
+            device.on("data", datacb)
           } catch(e) {
             done(e)
           }

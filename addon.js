@@ -118,6 +118,10 @@ class Device extends EventEmitter {
   disableTestMode () {
     this.device.disableTestMode()
   }
+  
+  off (event, cb) {
+    this.removeListener(event, cb)
+  }
 }
 
 module.exports = {  

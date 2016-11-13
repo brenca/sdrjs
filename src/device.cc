@@ -138,10 +138,9 @@ void uv_free_handle(uv_handle_t* handle) {}
 void dataCallback(unsigned char *buf, uint32_t len, void *ctx) {  
   Device* device = (Device*)ctx;
   if (device != NULL && buf != NULL && len > 0 && device->_async) {
-    BufferData* data = new BufferData();
+    AsyncMessage* data = new AsyncMessage();
 		data->self = device;
-    data->buffer = new char[len];
-    memcpy(data->buffer, buf, len);
+    data->buffer = (char*)buf;
     data->length = len;
     data->stopped = false;
 
@@ -151,10 +150,9 @@ void dataCallback(unsigned char *buf, uint32_t len, void *ctx) {
 }
 
 void handleAsync(uv_async_t *handle) {
-  // Nan::EscapableHandleScope scope;
   Nan::HandleScope scope;
   
-  BufferData* data = (BufferData*) handle->data;
+  AsyncMessage* data = (AsyncMessage*) handle->data;
   
   if (data->stopped) {
     if (data->self->_stoppedCb)
@@ -164,16 +162,23 @@ void handleAsync(uv_async_t *handle) {
     return;
   }
 
-  if (data->self->_dataCb) {
-    Local<Value> argv[] = {
-      Nan::CopyBuffer(
-        data->buffer, data->length
-      ).ToLocalChecked()
-    };
-    data->self->_dataCb->Call(1, argv);
+  if (data->self->_dataCb && data->buffer) {
+    MaybeLocal<Object> buffer = 
+      node::Buffer::New(Isolate::GetCurrent(), data->length);
+    if (buffer.IsEmpty())
+      return;
+    
+    Local<Object> local_buffer = buffer.ToLocalChecked();
+    
+    memcpy(
+      node::Buffer::Data(local_buffer),
+      data->buffer,
+      data->length
+    );
+    
+    data->self->_dataCb->Call(1, (Local<Value>*)&local_buffer);
+    delete data;
   }
-  
-  delete[] data->buffer;
 }
 
 void Device::asyncData() {
@@ -185,8 +190,10 @@ void Device::asyncData() {
   }
 
   if (this->_async) {
-    BufferData* data = new BufferData();
+    AsyncMessage* data = new AsyncMessage();
     data->self = this;
+    data->buffer = nullptr;
+    data->length = 0;
     data->stopped = true;
     
     this->_async->data = (void*)data;
