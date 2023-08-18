@@ -2,7 +2,7 @@
   "targets": [
     {
       "includes": [ 
-        "node_modules/native-huron/native_huron_files.gypi" 
+        "../native-huron/native_huron_files.gypi" 
       ],
       "target_name": "sdrjs",
       "sources": [ "src/sdrjs.cc", "src/device.cc", "<@(native_huron_files)" ],
